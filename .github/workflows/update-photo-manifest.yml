@@ -1,0 +1,51 @@
+name: Update photo manifest
+
+# Whenever photos are added/removed/renamed in the "photos" folder, this
+# rebuilds photos/manifest.json — the list of photos the gallery reads.
+# You never need to touch this file yourself.
+
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "photos/**"
+      - "!photos/manifest.json"
+
+permissions:
+  contents: write
+
+jobs:
+  update-manifest:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate manifest.json from photos folder
+        run: |
+          python3 - <<'EOF'
+          import json, os, re
+
+          folder = "photos"
+          exts = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+          files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
+
+          def natural_key(name):
+              return [int(chunk) if chunk.isdigit() else chunk.lower()
+                      for chunk in re.split(r"(\d+)", name)]
+
+          files.sort(key=natural_key)
+
+          with open(os.path.join(folder, "manifest.json"), "w") as f:
+              json.dump(files, f, indent=2)
+              f.write("\n")
+          EOF
+
+      - name: Commit manifest if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add photos/manifest.json
+          git diff --cached --quiet || git commit -m "Update photo manifest"
+          git push

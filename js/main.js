@@ -15,15 +15,10 @@
   let loadedPhotos = [];
   let currentIndex = 0;
 
-  // Check which photos actually exist before showing them,
-  // so missing numbers in photos-data.js don't create broken images.
-  function checkImage(photo) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(photo);
-      img.onerror = () => resolve(null);
-      img.src = `photos/${photo.src}`;
-    });
+  function fetchJson(url) {
+    return fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
   }
 
   function buildGallery(photos) {
@@ -141,8 +136,16 @@
   });
 
   // ---------- Init ----------
-  Promise.all(photoList.map(checkImage)).then((results) => {
-    const found = results.filter(Boolean);
-    buildGallery(found);
+  // photos/manifest.json is generated automatically (see the GitHub Action)
+  // whenever you add or remove files in the "photos" folder.
+  // photos/captions.json is optional and hand-edited: { "filename.jpg": "caption" }
+  Promise.all([
+    fetchJson("photos/manifest.json"),
+    fetchJson("photos/captions.json"),
+  ]).then(([filenames, captions]) => {
+    const files = Array.isArray(filenames) ? filenames : [];
+    const captionMap = captions || {};
+    const photos = files.map((src) => ({ src, caption: captionMap[src] || "" }));
+    buildGallery(photos);
   });
 })();
